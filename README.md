@@ -1,1 +1,1 @@
-# ContactBook
+This program allows you to keep records of your contacts. In this progeram you will be able to do many things, for example: Load contacts from a file, show all contacts, add conctas, edit contacts, delete contacts, merge duplicate contacts and store contacts to a file
