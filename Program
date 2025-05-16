@@ -1,0 +1,733 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+class Contact
+{
+    public string Name { get; set; }
+    public string LastName { get; set; }
+    public string PhoneNumber { get; set; }
+    public string Email { get; set; }
+}
+
+class Program
+{
+    private static List<Contact> contacts = new List<Contact>();
+    private static bool changesMade = false;
+    private static string currentSortField = "Name";
+    private static bool sortAscending = true;
+
+    static void Main(string[] args)
+    {
+        ShowWelcomeScreen();
+        ShowMainMenu();
+    }
+
+    static void ShowWelcomeScreen()
+    {
+        Console.Clear();
+        Console.WriteLine("Welcome to Your Contact Book!");
+        Console.WriteLine("Author: Yaziel Andrades Ramos");
+        Console.WriteLine("Version: 3.0 Final");
+        Console.WriteLine("Last Revised: 2025-14-25");
+        Console.WriteLine("\nThis program allows you to keep records of your contacts.");
+        Console.Write("\nPress ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static void ShowMainMenu()
+    {
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine("Main Menu");
+            Console.WriteLine("[1] Load contacts from a file.");
+            Console.WriteLine("[2] Show all contacts.");
+            Console.WriteLine("[3] Add contact.");
+            Console.WriteLine("[4] Edit contact.");
+            Console.WriteLine("[5] Delete contact.");
+            Console.WriteLine("[6] Merge duplicate contacts.");
+            Console.WriteLine("[7] Store contacts to a file.");
+            Console.WriteLine("[8] Exit the application.");
+            Console.Write("Select an option: ");
+
+            string option = Console.ReadLine();
+            switch (option)
+            {
+                case "1":
+                    LoadContactsFromFile();
+                    break;
+                case "2":
+                    ShowAllContacts();
+                    break;
+                case "3":
+                    AddContact();
+                    break;
+                case "4":
+                    EditContact();
+                    break;
+                case "5":
+                    DeleteContact();
+                    break;
+                case "6":
+                    MergeDuplicateContacts();
+                    break;
+                case "7":
+                    StoreContactsToFile();
+                    break;
+                case "8":
+                    ExitApplication();
+                    return;
+                default:
+                    Console.WriteLine("Invalid option. Press ENTER to continue...");
+                    Console.ReadLine();
+                    break;
+            }
+        }
+    }
+
+    static void LoadContactsFromFile()
+    {
+        Console.Clear();
+        Console.WriteLine("### Load Contacts from File ###");
+        Console.WriteLine("Write the filename or nothing to cancel.");
+        Console.Write("Filename: ");
+        string filename = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            Console.WriteLine("\nThe operation was canceled.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        try
+        {
+            if (!File.Exists(filename))
+            {
+                Console.WriteLine($"\nERROR: File \"{filename}\" was not found!");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+
+            List<Contact> tempContacts = new List<Contact>();
+            string[] lines = File.ReadAllLines(filename);
+
+            foreach (string line in lines)
+            {
+                string[] parts = line.Split(new[] { '\t', ',', '<', '>' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 4)
+                {
+                    tempContacts.Add(new Contact
+                    {
+                        Name = parts[0].Trim(),
+                        LastName = parts[1].Trim(),
+                        PhoneNumber = parts[2].Trim(),
+                        Email = parts[3].Trim()
+                    });
+                }
+            }
+
+            contacts = tempContacts;
+            changesMade = false;
+            Console.WriteLine("\nContacts loaded successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("\nERROR: An error occurred while reading the file!");
+            Console.WriteLine(ex.Message);
+        }
+
+        Console.Write("Press ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static void ShowAllContacts(int page = 1, bool promptForSort = true)
+    {
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine("### Show All Contacts ###");
+
+            if (promptForSort)
+            {
+                Console.WriteLine("Sort by [1] Name [2] Last Name [3] Phone Number [4] E-mail");
+                Console.Write("Select sorting option: ");
+                string sortOption = Console.ReadLine();
+
+                if (sortOption == "1") { currentSortField = "Name"; sortAscending = !sortAscending; }
+                else if (sortOption == "2") { currentSortField = "LastName"; sortAscending = !sortAscending; }
+                else if (sortOption == "3") { currentSortField = "PhoneNumber"; sortAscending = !sortAscending; }
+                else if (sortOption == "4") { currentSortField = "Email"; sortAscending = !sortAscending; }
+                else if (sortOption != "") { page = 1; }
+            }
+
+            var sortedContacts = contacts.OrderBy(c => GetSortFieldValue(c)).ToList();
+            if (!sortAscending)
+            {
+                sortedContacts = contacts.OrderByDescending(c => GetSortFieldValue(c)).ToList();
+            }
+
+            int totalPages = (int)Math.Ceiling(sortedContacts.Count / 10.0);
+            if (totalPages == 0) totalPages = 1;
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+
+            Console.WriteLine($"\n#    Name        Last Name     Phone Number  E-mail");
+            Console.WriteLine("------------------------------------------------------------");
+
+            for (int i = (page - 1) * 10; i < page * 10 && i < sortedContacts.Count; i++)
+            {
+                Contact contact = sortedContacts[i];
+                Console.WriteLine($"{i.ToString().PadLeft(3)}  {contact.Name.PadRight(10)}  {contact.LastName.PadRight(12)}  {contact.PhoneNumber.PadRight(12)}  {contact.Email}");
+            }
+
+            Console.WriteLine($"\nPage {page} of {totalPages}");
+            Console.Write("Go to [0] Main Menu [-] Previous Page [+] Next Page: ");
+            string input = Console.ReadLine();
+
+            if (input == "0") return;
+            else if (input == "-") page--;
+            else if (input == "+") page++;
+            else if (int.TryParse(input, out int newPage)) page = newPage;
+
+            promptForSort = false;
+        }
+    }
+
+    static string GetSortFieldValue(Contact contact)
+    {
+        switch (currentSortField)
+        {
+            case "Name": return contact.Name;
+            case "LastName": return contact.LastName;
+            case "PhoneNumber": return contact.PhoneNumber;
+            case "Email": return contact.Email;
+            default: return contact.Name;
+        }
+    }
+
+    static void AddContact()
+    {
+        Console.Clear();
+        Console.WriteLine("### Add New Contact ###");
+
+        Contact newContact = new Contact();
+
+        Console.Write("Name: ");
+        newContact.Name = Console.ReadLine();
+
+        Console.Write("Last Name: ");
+        newContact.LastName = Console.ReadLine();
+
+        Console.Write("Phone Number: ");
+        newContact.PhoneNumber = Console.ReadLine();
+
+        Console.Write("E-mail: ");
+        newContact.Email = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(newContact.Name) && string.IsNullOrWhiteSpace(newContact.LastName))
+        {
+            Console.WriteLine("\nERROR: At least the name or last name must be present.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newContact.PhoneNumber) && string.IsNullOrWhiteSpace(newContact.Email))
+        {
+            Console.WriteLine("\nERROR: At least a phone number or e-mail must be present.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.Write("\nDo you want to add the contact? [Y/N] ");
+        string confirm = Console.ReadLine();
+
+        if (confirm.ToUpper() == "Y")
+        {
+            contacts.Add(newContact);
+            changesMade = true;
+            Console.WriteLine("\nContact added to the list successfully!");
+        }
+        else
+        {
+            Console.WriteLine("\nContact not added to the list.");
+        }
+
+        Console.Write("Press ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static void EditContact()
+    {
+        Console.Clear();
+        Console.WriteLine("### Edit Existing Contact ###");
+        Console.Write("Search by [1] index or [2] field or [0] cancel: ");
+        string searchOption = Console.ReadLine();
+
+        List<Contact> foundContacts = new List<Contact>();
+
+        if (searchOption == "1")
+        {
+            Console.Write($"Enter index [0-{contacts.Count - 1}]: ");
+            if (int.TryParse(Console.ReadLine(), out int index) && index >= 0 && index < contacts.Count)
+            {
+                foundContacts.Add(contacts[index]);
+            }
+            else
+            {
+                Console.WriteLine("\nInvalid index.");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+        }
+        else if (searchOption == "2")
+        {
+            Console.Write("Enter field content: ");
+            string searchTerm = Console.ReadLine();
+
+            foundContacts = contacts.Where(c =>
+                c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.LastName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.PhoneNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.Email.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (foundContacts.Count == 0)
+            {
+                Console.WriteLine("\nNo contacts found with that search term.");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+
+            Console.WriteLine("\n#    Name        Last Name     Phone Number  E-mail");
+            Console.WriteLine("------------------------------------------------------------");
+            for (int i = 0; i < foundContacts.Count; i++)
+            {
+                Contact contact = foundContacts[i];
+                Console.WriteLine($"{i.ToString().PadLeft(3)}  {contact.Name.PadRight(10)}  {contact.LastName.PadRight(12)}  {contact.PhoneNumber.PadRight(12)}  {contact.Email}");
+            }
+
+            Console.Write("\nSelect index of which contact to edit: ");
+            if (int.TryParse(Console.ReadLine(), out int selectedIndex) && selectedIndex >= 0 && selectedIndex < foundContacts.Count)
+            {
+                foundContacts = new List<Contact> { foundContacts[selectedIndex] };
+            }
+            else
+            {
+                Console.WriteLine("\nInvalid selection.");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+        }
+        else if (searchOption == "0")
+        {
+            Console.WriteLine("\nOperation canceled.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+        else
+        {
+            Console.WriteLine("\nInvalid option.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Contact contactToEdit = foundContacts.First();
+        Contact originalContact = new Contact
+        {
+            Name = contactToEdit.Name,
+            LastName = contactToEdit.LastName,
+            PhoneNumber = contactToEdit.PhoneNumber,
+            Email = contactToEdit.Email
+        };
+
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine("### Edit Existing Contact ###");
+            Console.WriteLine($"Name: {contactToEdit.Name}");
+            Console.WriteLine($"Last Name: {contactToEdit.LastName}");
+            Console.WriteLine($"Phone Number: {contactToEdit.PhoneNumber}");
+            Console.WriteLine($"E-mail: {contactToEdit.Email}");
+            Console.WriteLine("\n[1] Name [2] Last Name [3] Phone Number [4] E-mail");
+            Console.Write("Select property to edit or [0] if done: ");
+            string editOption = Console.ReadLine();
+
+            if (editOption == "0") break;
+
+            switch (editOption)
+            {
+                case "1":
+                    Console.Write("Enter name: ");
+                    contactToEdit.Name = Console.ReadLine();
+                    break;
+                case "2":
+                    Console.Write("Enter last name: ");
+                    contactToEdit.LastName = Console.ReadLine();
+                    break;
+                case "3":
+                    Console.Write("Enter phone number: ");
+                    contactToEdit.PhoneNumber = Console.ReadLine();
+                    break;
+                case "4":
+                    Console.Write("Enter e-mail: ");
+                    contactToEdit.Email = Console.ReadLine();
+                    break;
+                default:
+                    Console.WriteLine("\nInvalid option.");
+                    Console.Write("Press ENTER to continue...");
+                    Console.ReadLine();
+                    break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(contactToEdit.Name) && string.IsNullOrWhiteSpace(contactToEdit.LastName))
+        {
+            Console.WriteLine("\nERROR: At least the name or last name must be present. Changes not saved.");
+            contactToEdit.Name = originalContact.Name;
+            contactToEdit.LastName = originalContact.LastName;
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(contactToEdit.PhoneNumber) && string.IsNullOrWhiteSpace(contactToEdit.Email))
+        {
+            Console.WriteLine("\nERROR: At least a phone number or e-mail must be present. Changes not saved.");
+            contactToEdit.PhoneNumber = originalContact.PhoneNumber;
+            contactToEdit.Email = originalContact.Email;
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Console.Write("\nDo you want to save these changes? [Y/N] ");
+        string confirm = Console.ReadLine();
+
+        if (confirm.ToUpper() == "Y")
+        {
+            changesMade = true;
+            Console.WriteLine("\nContact updated successfully!");
+        }
+        else
+        {
+            contactToEdit.Name = originalContact.Name;
+            contactToEdit.LastName = originalContact.LastName;
+            contactToEdit.PhoneNumber = originalContact.PhoneNumber;
+            contactToEdit.Email = originalContact.Email;
+            Console.WriteLine("\nChanges discarded.");
+        }
+
+        Console.Write("Press ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static void DeleteContact()
+    {
+        Console.Clear();
+        Console.WriteLine("### Delete Existing Contact ###");
+        Console.Write("Search by [1] index or [2] field or [0] cancel: ");
+        string searchOption = Console.ReadLine();
+
+        List<Contact> foundContacts = new List<Contact>();
+
+        if (searchOption == "1")
+        {
+            Console.Write($"Enter index [0-{contacts.Count - 1}]: ");
+            if (int.TryParse(Console.ReadLine(), out int index) && index >= 0 && index < contacts.Count)
+            {
+                foundContacts.Add(contacts[index]);
+            }
+            else
+            {
+                Console.WriteLine("\nInvalid index.");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+        }
+        else if (searchOption == "2")
+        {
+            Console.Write("Enter field content: ");
+            string searchTerm = Console.ReadLine();
+
+            foundContacts = contacts.Where(c =>
+                c.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.LastName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.PhoneNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                c.Email.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (foundContacts.Count == 0)
+            {
+                Console.WriteLine("\nNo contacts found with that search term.");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+
+            Console.WriteLine("\n#    Name        Last Name     Phone Number  E-mail");
+            Console.WriteLine("------------------------------------------------------------");
+            for (int i = 0; i < foundContacts.Count; i++)
+            {
+                Contact contact = foundContacts[i];
+                Console.WriteLine($"{i.ToString().PadLeft(3)}  {contact.Name.PadRight(10)}  {contact.LastName.PadRight(12)}  {contact.PhoneNumber.PadRight(12)}  {contact.Email}");
+            }
+
+            Console.Write("\nSelect index of which contact to delete: ");
+            if (int.TryParse(Console.ReadLine(), out int selectedIndex) && selectedIndex >= 0 && selectedIndex < foundContacts.Count)
+            {
+                foundContacts = new List<Contact> { foundContacts[selectedIndex] };
+            }
+            else
+            {
+                Console.WriteLine("\nInvalid selection.");
+                Console.Write("Press ENTER to continue...");
+                Console.ReadLine();
+                return;
+            }
+        }
+        else if (searchOption == "0")
+        {
+            Console.WriteLine("\nOperation canceled.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+        else
+        {
+            Console.WriteLine("\nInvalid option.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        Contact contactToDelete = foundContacts.First();
+        Console.WriteLine($"\nName: {contactToDelete.Name}");
+        Console.WriteLine($"Last Name: {contactToDelete.LastName}");
+        Console.WriteLine($"Phone Number: {contactToDelete.PhoneNumber}");
+        Console.WriteLine($"E-mail: {contactToDelete.Email}");
+        Console.Write("\nDo you want to delete this contact? [Y/N] ");
+        string confirm = Console.ReadLine();
+
+        if (confirm.ToUpper() == "Y")
+        {
+            contacts.Remove(contactToDelete);
+            changesMade = true;
+            Console.WriteLine("\nContact deleted successfully!");
+        }
+        else
+        {
+            Console.WriteLine("\nContact not deleted.");
+        }
+
+        Console.Write("Press ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static void MergeDuplicateContacts()
+    {
+        Console.Clear();
+        Console.WriteLine("### Merge Duplicate Contacts ###");
+
+        List<Contact> allContactsCopy = new List<Contact>(contacts);
+        List<List<Contact>> allDuplicateSets = new List<List<Contact>>();
+
+        while (allContactsCopy.Count > 0)
+        {
+            List<Contact> duplicateSet = new List<Contact>();
+            Contact originalContact = allContactsCopy.Last();
+            duplicateSet.Add(originalContact);
+            allContactsCopy.RemoveAt(allContactsCopy.Count - 1);
+
+            for (int i = allContactsCopy.Count - 1; i >= 0; i--)
+            {
+                Contact duplicateContact = allContactsCopy[i];
+                if (IsDuplicate(originalContact, duplicateContact))
+                {
+                    duplicateSet.Add(duplicateContact);
+                    allContactsCopy.RemoveAt(i);
+                }
+            }
+
+            if (duplicateSet.Count > 1)
+            {
+                allDuplicateSets.Add(duplicateSet);
+            }
+        }
+
+        if (allDuplicateSets.Count == 0)
+        {
+            Console.WriteLine("\nNo duplicate contacts found.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        foreach (var duplicateSet in allDuplicateSets)
+        {
+            Console.WriteLine("\nDuplicate Contacts Found:");
+            for (int i = 0; i < duplicateSet.Count; i++)
+            {
+                Contact contact = duplicateSet[i];
+                Console.WriteLine($"[{i}] {contact.Name} {contact.LastName} - {contact.PhoneNumber} - {contact.Email}");
+            }
+
+            Contact mergedContact = new Contact();
+
+            Console.WriteLine("\nSelect which contact has the correct name:");
+            for (int i = 0; i < duplicateSet.Count; i++)
+            {
+                Console.WriteLine($"[{i}] {duplicateSet[i].Name}");
+            }
+            if (int.TryParse(Console.ReadLine(), out int nameIndex) && nameIndex >= 0 && nameIndex < duplicateSet.Count)
+            {
+                mergedContact.Name = duplicateSet[nameIndex].Name;
+            }
+
+            Console.WriteLine("\nSelect which contact has the correct last name:");
+            for (int i = 0; i < duplicateSet.Count; i++)
+            {
+                Console.WriteLine($"[{i}] {duplicateSet[i].LastName}");
+            }
+            if (int.TryParse(Console.ReadLine(), out int lastNameIndex) && lastNameIndex >= 0 && lastNameIndex < duplicateSet.Count)
+            {
+                mergedContact.LastName = duplicateSet[lastNameIndex].LastName;
+            }
+
+            Console.WriteLine("\nSelect which contact has the correct phone number:");
+            for (int i = 0; i < duplicateSet.Count; i++)
+            {
+                Console.WriteLine($"[{i}] {duplicateSet[i].PhoneNumber}");
+            }
+            if (int.TryParse(Console.ReadLine(), out int phoneIndex) && phoneIndex >= 0 && phoneIndex < duplicateSet.Count)
+            {
+                mergedContact.PhoneNumber = duplicateSet[phoneIndex].PhoneNumber;
+            }
+
+            Console.WriteLine("\nSelect which contact has the correct email:");
+            for (int i = 0; i < duplicateSet.Count; i++)
+            {
+                Console.WriteLine($"[{i}] {duplicateSet[i].Email}");
+            }
+            if (int.TryParse(Console.ReadLine(), out int emailIndex) && emailIndex >= 0 && emailIndex < duplicateSet.Count)
+            {
+                mergedContact.Email = duplicateSet[emailIndex].Email;
+            }
+
+            Console.Write("\nDo you want to add this merged contact? [Y/N] ");
+            if (Console.ReadLine().ToUpper() == "Y")
+            {
+                contacts.Add(mergedContact);
+                changesMade = true;
+                Console.WriteLine("\nMerged contact added.");
+
+                Console.WriteLine("\nSelect which duplicates to delete:");
+                for (int i = 0; i < duplicateSet.Count; i++)
+                {
+                    Console.Write($"Delete [{i}] {duplicateSet[i].Name} {duplicateSet[i].LastName}? [Y/N] ");
+                    if (Console.ReadLine().ToUpper() == "Y")
+                    {
+                        contacts.Remove(duplicateSet[i]);
+                        changesMade = true;
+                        Console.WriteLine("Contact deleted.");
+                    }
+                }
+            }
+        }
+
+        Console.Write("\nPress ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static bool IsDuplicate(Contact a, Contact b)
+    {
+        return (a.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase) &&
+               (a.LastName.Equals(b.LastName, StringComparison.OrdinalIgnoreCase)) ||
+               (a.PhoneNumber.Equals(b.PhoneNumber, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(a.PhoneNumber)) ||
+               (a.Email.Equals(b.Email, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(a.Email)));
+    }
+
+    static void StoreContactsToFile()
+    {
+        Console.Clear();
+        Console.WriteLine("### Storing Contacts to File ###");
+        Console.WriteLine("Write the filename or nothing to cancel.");
+        Console.Write("Filename: ");
+        string filename = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            Console.WriteLine("\nOperation canceled.");
+            Console.Write("Press ENTER to continue...");
+            Console.ReadLine();
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(filename))
+            {
+                Console.Write("\nWARNING: The file already exists. Do you want to override it? [Y/N] ");
+                if (Console.ReadLine().ToUpper() != "Y")
+                {
+                    Console.WriteLine("\nOperation canceled.");
+                    Console.Write("Press ENTER to continue...");
+                    Console.ReadLine();
+                    return;
+                }
+            }
+
+            using (StreamWriter writer = new StreamWriter(filename))
+            {
+                foreach (Contact contact in contacts)
+                {
+                    writer.WriteLine($"{contact.Name}\t{contact.LastName}\t{contact.PhoneNumber}\t{contact.Email}");
+                }
+            }
+
+            changesMade = false;
+            Console.WriteLine("\nContacts stored successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("\nERROR: An error occurred while writing the file!");
+            Console.WriteLine(ex.Message);
+        }
+
+        Console.Write("Press ENTER to continue...");
+        Console.ReadLine();
+    }
+
+    static void ExitApplication()
+    {
+        Console.Clear();
+        Console.WriteLine("### Exit Application ###");
+
+        if (changesMade)
+        {
+            Console.WriteLine("WARNING: You have made changes to the contact list that have not been stored.");
+            Console.Write("Are you sure that you want to exit? [Y/N] ");
+        }
+        else
+        {
+            Console.Write("Are you sure that you want to exit? [Y/N] ");
+        }
+
+        string confirm = Console.ReadLine();
+        if (confirm.ToUpper() == "Y")
+        {
+            Console.WriteLine("\nThank you for using Contacts Book! Until next time!");
+            Environment.Exit(0);
+        }
+    }
+}
